@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.database import get_db, close_client
 from app.core.config import settings
+from app.auth import auth_router
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -14,8 +15,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     try:
-        await get_db()
+        db = await get_db()
         logger.info("MongoDB connected")
+        await db.users.create_index("email", unique=True)
+        logger.info("Database indexes ensured")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
@@ -43,6 +46,9 @@ app.add_middleware(
 )
 
 
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     return f"""
@@ -58,7 +64,7 @@ async def root():
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
             }}
             .container {{ text-align: center; color: white; }}
             h1 {{ font-size: 2.5rem; margin-bottom: 0.5rem; }}
@@ -67,7 +73,7 @@ async def root():
                 display: inline-block;
                 padding: 12px 32px;
                 background: white;
-                color: #667eea;
+                color: #0ea5e9;
                 text-decoration: none;
                 border-radius: 8px;
                 font-weight: 600;
