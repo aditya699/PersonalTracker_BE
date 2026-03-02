@@ -9,10 +9,13 @@ app/
 │   ├── config.py        # Pydantic Settings (env vars)
 │   └── database.py      # MongoDB connection
 ├── auth/
-│   ├── routes.py        # Auth endpoints (register, login, refresh, me)
+│   ├── routes.py        # Auth endpoints (register, login, refresh, logout, me)
 │   ├── schemas.py       # Auth Pydantic models
 │   ├── utils.py         # Password hashing (bcrypt), JWT creation/verification
 │   └── dependencies.py  # get_current_user dependency
+├── tasks/
+│   ├── routes.py        # Task CRUD endpoints
+│   └── schemas.py       # Task Pydantic models
 ```
 
 ## Running
@@ -42,16 +45,28 @@ Pydantic Settings loading from `.env`:
 - `JWT_ALGORITHM` - JWT algorithm (default: "HS256")
 - `ACCESS_TOKEN_EXPIRE_DAYS` - Access token expiry (default: 7)
 - `REFRESH_TOKEN_EXPIRE_DAYS` - Refresh token expiry (default: 30)
+- `FRONTEND_URL` - Frontend origin for CORS (default: "http://localhost:5173")
 
 ### `app/auth/`
 Email + password JWT authentication.
-- `POST /auth/register` — register with email, password, name → auto-login, returns tokens
-- `POST /auth/login` — login with email + password → returns tokens
-- `POST /auth/refresh` — exchange refresh token for new token pair
+- `POST /auth/register` — register with email, password, name → auto-login, returns access_token + sets refresh_token cookie
+- `POST /auth/login` — login with email + password → returns access_token + sets refresh_token cookie
+- `POST /auth/refresh` — reads refresh_token from httpOnly cookie, returns new access_token + rotates cookie
+- `POST /auth/logout` — clears refresh_token cookie
 - `GET /auth/me` — get current user profile (protected)
+
+**Token strategy:** access_token returned in JSON body (stored in memory by frontend). refresh_token set as httpOnly cookie (path=/auth/refresh, secure in production, samesite=lax).
 
 User identifier is `email` (stored lowercase). JWT payload contains `sub` (user_id) and `type` (access/refresh).
 Dependency: `get_current_user` from `app.auth.dependencies` for protected endpoints.
+
+### `app/tasks/`
+Task CRUD with status flow: todo → doing → testing → done. All endpoints protected, scoped to authenticated user.
+- `POST /tasks/` — create task (auto status: todo)
+- `GET /tasks/` — list tasks (filter by status, pagination via skip/limit)
+- `GET /tasks/{task_id}` — get single task
+- `PUT /tasks/{task_id}` — partial update (title, description, status)
+- `DELETE /tasks/{task_id}` — delete task
 
 ## Rules
 

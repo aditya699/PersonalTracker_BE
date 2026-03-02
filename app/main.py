@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from app.core.database import get_db, close_client
 from app.core.config import settings
 from app.auth import auth_router
+from app.tasks import tasks_router
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +19,8 @@ async def lifespan(app: FastAPI):
         db = await get_db()
         logger.info("MongoDB connected")
         await db.users.create_index("email", unique=True)
+        await db.tasks.create_index([("user_id", 1), ("status", 1)])
+        await db.tasks.create_index([("user_id", 1), ("created_at", -1)])
         logger.info("Database indexes ensured")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -39,7 +42,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +50,7 @@ app.add_middleware(
 
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
 
 
 @app.get("/", response_class=HTMLResponse)
