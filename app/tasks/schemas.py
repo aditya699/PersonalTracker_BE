@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 
@@ -14,12 +14,14 @@ class TaskStatus(str, Enum):
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
+    scheduled_date: Optional[date] = None
 
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
     status: Optional[TaskStatus] = None
+    scheduled_date: Optional[date] = None
 
 
 class TaskResponse(BaseModel):
@@ -27,6 +29,7 @@ class TaskResponse(BaseModel):
     title: str
     description: Optional[str] = None
     status: TaskStatus
+    scheduled_date: Optional[date] = None
     user_id: str
     created_at: datetime
     updated_at: datetime

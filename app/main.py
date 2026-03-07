@@ -6,6 +6,8 @@ from app.core.database import get_db, close_client
 from app.core.config import settings
 from app.auth import auth_router
 from app.tasks import tasks_router
+from app.notes import notes_router
+from app.habits import habits_router
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,14 @@ async def lifespan(app: FastAPI):
         await db.users.create_index("email", unique=True)
         await db.tasks.create_index([("user_id", 1), ("status", 1)])
         await db.tasks.create_index([("user_id", 1), ("created_at", -1)])
+        await db.tasks.create_index([("user_id", 1), ("scheduled_date", 1)])
+        await db.notes.create_index([("user_id", 1), ("week_start", 1)])
+        await db.habits.create_index([("user_id", 1), ("is_active", 1)])
+        await db.habit_entries.create_index(
+            [("habit_id", 1), ("date", 1), ("user_id", 1)],
+            unique=True,
+        )
+        await db.habit_entries.create_index([("user_id", 1), ("date", 1)])
         logger.info("Database indexes ensured")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -42,7 +52,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=[settings.FRONTEND_URL, "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +61,8 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
+app.include_router(notes_router, prefix="/notes", tags=["Notes"])
+app.include_router(habits_router, prefix="/habits", tags=["Habits"])
 
 
 @app.get("/", response_class=HTMLResponse)

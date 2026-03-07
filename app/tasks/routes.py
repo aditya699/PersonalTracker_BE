@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from datetime import datetime, UTC
+from datetime import datetime, date, time, UTC
 from bson import ObjectId
 from bson.errors import InvalidId
 from app.core.database import get_db, log_error
@@ -16,11 +16,15 @@ router = APIRouter()
 
 
 def _task_to_response(task: dict) -> TaskResponse:
+    scheduled = task.get("scheduled_date")
+    if isinstance(scheduled, datetime):
+        scheduled = scheduled.date()
     return TaskResponse(
         id=str(task["_id"]),
         title=task["title"],
         description=task.get("description"),
         status=task["status"],
+        scheduled_date=scheduled,
         user_id=task["user_id"],
         created_at=task["created_at"],
         updated_at=task["updated_at"],
@@ -47,6 +51,7 @@ async def create_task(req: TaskCreate, user: dict = Depends(get_current_user)):
             "title": req.title,
             "description": req.description,
             "status": TaskStatus.todo.value,
+            "scheduled_date": datetime.combine(req.scheduled_date, time.min) if req.scheduled_date else None,
             "user_id": str(user["_id"]),
             "created_at": now,
             "updated_at": now,
@@ -69,6 +74,8 @@ async def create_task(req: TaskCreate, user: dict = Depends(get_current_user)):
 @router.get("/", response_model=TaskListResponse)
 async def list_tasks(
     status_filter: TaskStatus | None = Query(default=None, alias="status"),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     user: dict = Depends(get_current_user),
@@ -80,6 +87,14 @@ async def list_tasks(
         query = {"user_id": user_id}
         if status_filter:
             query["status"] = status_filter.value
+
+        if date_from or date_to:
+            date_query = {}
+            if date_from:
+                date_query["$gte"] = datetime.combine(date_from, time.min)
+            if date_to:
+                date_query["$lte"] = datetime.combine(date_to, time.max)
+            query["scheduled_date"] = date_query
 
         total = await db.tasks.count_documents(query)
         cursor = db.tasks.find(query).sort("created_at", -1).skip(skip).limit(limit)
@@ -137,6 +152,11 @@ async def update_task(
 
         if "status" in update_data:
             update_data["status"] = update_data["status"].value
+
+        if "scheduled_date" in update_data:
+            update_data["scheduled_date"] = datetime.combine(
+                update_data["scheduled_date"], time.min
+            )
 
         update_data["updated_at"] = datetime.now(UTC)
 
